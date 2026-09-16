@@ -1,0 +1,14 @@
+[Unit]
+Description=Tailscale Funnel for Reachy Bridge
+After=network-online.target tailscaled.service
+Wants=network-online.target
+Requires=tailscaled.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tailscale funnel 8765
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Reachy Bridge — HTTPS body for Reachy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/reachy-bridge
+ExecStart=/path/to/reachy-bridge/.venv/bin/python /path/to/reachy-bridge/bridge.py
+Restart=always
+RestartSec=5
+# .env in WorkingDirectory holds BRIDGE_* config; clients/ holds agent pubkeys
+
+[Install]
+WantedBy=multi-user.target

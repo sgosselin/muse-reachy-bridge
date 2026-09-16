@@ -89,6 +89,14 @@ docs/SECURITY.md       threat model + operational guidance
 - Don't leave the tunnel up unattended with a live robot. Read
   `docs/SECURITY.md` before exposing yours.
 
+## Deploy (always-on)
+
+`deploy/` has launchd (macOS) and systemd (Linux/Pi) units for the bridge
+plus the Tailscale Funnel tunnel, so both survive reboots and crashes.
+Full steps in [deploy/README.md](deploy/README.md). Tip: if your Reachy is on
+your Tailscale network, point `BRIDGE_MINI_URL` at its Tailscale IP and the
+bridge host doesn't even need to be on the robot's LAN.
+
 ## Roadmap
 
 - Camera (Mini video is WebRTC-only today — phase 2: eyes for the body)
