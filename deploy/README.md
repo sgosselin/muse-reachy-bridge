@@ -1,8 +1,35 @@
 # Deploying reachy-bridge always-on
 
+## Option A — on the Reachy Mini itself (recommended)
+
+The Mini runs a Debian-based OS on its internal Raspberry Pi, so Tailscale
+and the bridge install directly on the robot. One box, always on whenever
+the robot is, and the bridge reaches the daemon over localhost.
+
+```bash
+ssh pollen@reachy-mini.local        # password: root
+curl -fsSLO https://raw.githubusercontent.com/sgosselin/muse-reachy-bridge/main/scripts/install-robot.sh
+chmod +x install-robot.sh
+./install-robot.sh
+```
+
+The script installs Tailscale (via the official install script), clones the
+repo, builds the venv, registers your agent's public key (you'll be pasted
+for it — or set `AGENT_PUBKEY`), writes `.env` with the daemon at
+`http://127.0.0.1:8000/api`, and enables two systemd services so the bridge
+and the Funnel tunnel survive reboots. For headless Tailscale login, generate
+an auth key at https://login.tailscale.com/admin/settings/keys and run
+`TS_AUTHKEY=tskey-auth-... ./install-robot.sh` instead.
+
+At the end it prints your public `https://<...>.ts.net` URL. If `funnel`
+errors about permissions, enable Funnel in the Tailscale admin console for
+your tailnet first.
+
+## Option B — on a separate always-on host
+
 Goal: the bridge runs 24/7 and restarts itself (and the tunnel) after
-reboots and crashes. Pick **one** host — your Mac, a Mac mini, a Raspberry
-Pi, anything that's always on and can reach the robot.
+reboots and crashes. Pick your Mac, a Mac mini, a Raspberry Pi, anything
+that's always on and can reach the robot.
 
 Because the robot is on your Tailscale network, the bridge host doesn't even
 need to be on the robot's LAN: set `BRIDGE_MINI_URL` to the robot's Tailscale
