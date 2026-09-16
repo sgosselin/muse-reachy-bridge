@@ -7,7 +7,7 @@ docstring for the scheme). stdlib-only apart from `cryptography`.
 
     from bridge_client import BridgeClient
     b = BridgeClient("https://reachy-bridge.tail12345.ts.net",
-                     client_id="astro", key_path="~/.ssh/reachy_bridge_astro")
+                     client_id="eclipse", key_path="~/.ssh/reachy_bridge_eclipse")
     b.goto(pitch=15, yaw=-30, duration=1.5)
     b.preset("nod")
 
@@ -38,8 +38,8 @@ class BridgeError(Exception):
 
 
 class BridgeClient:
-    def __init__(self, base_url: str, client_id: str = "astro",
-                 key_path: str = "~/.ssh/reachy_bridge_astro"):
+    def __init__(self, base_url: str, client_id: str = "eclipse",
+                 key_path: str = "~/.ssh/reachy_bridge_eclipse"):
         self.base_url = base_url.rstrip("/")
         self.client_id = client_id
         with open(os.path.expanduser(key_path), "rb") as f:
@@ -160,9 +160,9 @@ class BridgeClient:
 def main():
     ap = argparse.ArgumentParser(description="signed reachy-bridge client")
     ap.add_argument("--url", required=True, help="bridge base URL")
-    ap.add_argument("--key", default="~/.ssh/reachy_bridge_astro",
+    ap.add_argument("--key", default="~/.ssh/reachy_bridge_eclipse",
                     help="Ed25519 private key")
-    ap.add_argument("--client", default="astro", help="client id in keys/")
+    ap.add_argument("--client", default="eclipse", help="client id in keys/")
     ap.add_argument("command", choices=["health", "state", "limits", "goto",
                                         "preset", "motors", "estop", "estop-reset",
                                         "snapshot", "record", "play", "doa"])

@@ -13,11 +13,13 @@
 #                 (https://login.tailscale.com/admin/settings/keys).
 #                 If unset, run `sudo tailscale up` yourself when told.
 #   AGENT_PUBKEY  the agent's ssh-ed25519 public key (else you're prompted)
+#   AGENT_NAME    client id for keys/<name>.pub (default: eclipse)
 #   INSTALL_DIR   checkout location (default: $HOME/muse-reachy-bridge)
 set -euo pipefail
 
 REPO="https://github.com/sgosselin/muse-reachy-bridge.git"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/muse-reachy-bridge}"
+AGENT_NAME="${AGENT_NAME:-eclipse}"
 USER_NAME="$(id -un)"
 
 echo "== Tailscale =="
@@ -69,12 +71,12 @@ sudo apt-get install -y -qq python3-gi gir1.2-gstreamer-1.0 2>/dev/null || true
 echo "== agent key =="
 mkdir -p keys
 PUBKEY="${AGENT_PUBKEY:-}"
-if [ -z "$PUBKEY" ] && [ ! -f keys/astro.pub ]; then
+if [ -z "$PUBKEY" ] && [ ! -f "keys/${AGENT_NAME}.pub" ]; then
   read -rp "Paste the agent's ssh-ed25519 public key: " PUBKEY
 fi
 if [ -n "$PUBKEY" ]; then
-  echo "$PUBKEY" > keys/astro.pub
-  echo "registered in keys/astro.pub"
+  echo "$PUBKEY" > "keys/${AGENT_NAME}.pub"
+  echo "registered in keys/${AGENT_NAME}.pub"
 fi
 
 echo "== config =="

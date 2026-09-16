@@ -46,8 +46,8 @@ mkdir -p keys
 if ls keys/*.pub >/dev/null 2>&1; then
   info "existing clients: $(ls keys/*.pub | xargs -n1 basename | tr '\n' ' ')"
 fi
-read -r -p "  Agent name [astro]: " AGENT_NAME || true
-AGENT_NAME="${AGENT_NAME:-astro}"
+read -r -p "  Agent name [eclipse]: " AGENT_NAME || true
+AGENT_NAME="${AGENT_NAME:-eclipse}"
 PUB_FILE="keys/${AGENT_NAME}.pub"
 if [ -f "$PUB_FILE" ]; then
   info "keeping existing $PUB_FILE"
