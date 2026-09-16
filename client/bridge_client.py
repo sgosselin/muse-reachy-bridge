@@ -162,7 +162,7 @@ def main():
     ap.add_argument("--url", required=True, help="bridge base URL")
     ap.add_argument("--key", default="~/.ssh/reachy_bridge_astro",
                     help="Ed25519 private key")
-    ap.add_argument("--client", default="astro", help="client id in clients/")
+    ap.add_argument("--client", default="astro", help="client id in keys/")
     ap.add_argument("command", choices=["health", "state", "limits", "goto",
                                         "preset", "motors", "estop", "estop-reset",
                                         "snapshot", "record", "play", "doa"])

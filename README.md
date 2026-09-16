@@ -55,9 +55,9 @@ login), and Funnel enabled in the Tailscale admin console.
 1. Agent generates an Ed25519 keypair on its own machine and sends you the
    **public** key (safe to paste in chat — it's public).
 2. You paste it when `install-robot.sh` asks (or pass `AGENT_PUBKEY=…`); it
-   lands in `clients/<name>.pub`.
+   lands in `keys/<name>.pub`.
 3. To rotate later: `./scripts/add-client.sh <name>`, paste the new key, then
-   `sudo systemctl restart reachy-bridge`. To revoke: `rm clients/<name>.pub`
+   `sudo systemctl restart reachy-bridge`. To revoke: `rm keys/<name>.pub`
    and restart. Done.
 
 ## API
@@ -112,7 +112,7 @@ scripts/install-robot.sh on-robot installer: Tailscale, venv, agent key intake,
                          .env, systemd + Funnel services (recommended)
 scripts/setup.sh         wizard for running the bridge on a separate host
 scripts/add-client.sh    add or rotate an agent's public key
-clients/                 agent public keys (gitignored — yours, not the repo's)
+keys/                 agent public keys (gitignored — yours, not the repo's)
 docs/ARCHITECTURE.md     full design rationale
 docs/SECURITY.md         threat model + operational guidance
 deploy/                  always-on units if the bridge lives off-robot

@@ -9,7 +9,7 @@ a remote agent can drive through Tailscale Funnel / Cloudflare Tunnel.
 AUTHENTICATION (two doors, two credentials):
   1. Agent API — Ed25519 request signatures (proves WHO is calling).
      The agent holds the private key; the bridge holds the agent's public key
-     in clients/<name>.pub. Every request carries:
+     in keys/<name>.pub. Every request carries:
          X-Bridge-Client:    <name>
          X-Bridge-Timestamp: <unix seconds>
          X-Bridge-Nonce:     <random hex>
@@ -24,7 +24,7 @@ AUTHENTICATION (two doors, two credentials):
      browser/phone. Separate credential from the agent's key.
 
 Nothing owner-specific (keys, tokens, URLs) belongs in the git repo:
-clients/*.pub, .env and audit.log are gitignored.
+keys/*.pub, .env and audit.log are gitignored.
 
 Endpoints (all JSON; /panel HTML is public, its API calls are authenticated):
   GET  /health            liveness + robot type + auth mode
@@ -114,7 +114,7 @@ class Config:
     mock: bool = False
     panel_token: str | None = None
     no_auth: bool = False
-    clients_dir: str = "clients"
+    clients_dir: str = "keys"
     audit_log: str = "audit.log"
     auth_window: int = 120
 
@@ -129,7 +129,7 @@ LAST_COMMAND: dict = {"pitch": 0.0, "yaw": 0.0, "roll": 0.0,
 
 
 def load_clients(directory: str) -> dict[str, Ed25519PublicKey]:
-    """Load clients/<name>.pub -> {name: Ed25519PublicKey}. Accepts OpenSSH
+    """Load keys/<name>.pub -> {name: Ed25519PublicKey}. Accepts OpenSSH
     one-liners and PEM blocks."""
     clients: dict[str, Ed25519PublicKey] = {}
     if not os.path.isdir(directory):
@@ -149,7 +149,7 @@ def load_clients(directory: str) -> dict[str, Ed25519PublicKey]:
             except Exception:  # noqa: BLE001 — try the next format
                 continue
         if not isinstance(key, Ed25519PublicKey):
-            print(f"[bridge] WARNING: clients/{fname} is not an Ed25519 key — ignored",
+            print(f"[bridge] WARNING: keys/{fname} is not an Ed25519 key — ignored",
                   file=sys.stderr)
             continue
         clients[name] = key

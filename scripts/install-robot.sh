@@ -67,14 +67,14 @@ sudo apt-get install -y -qq python3-gi gir1.2-gstreamer-1.0 2>/dev/null || true
 }
 
 echo "== agent key =="
-mkdir -p clients
+mkdir -p keys
 PUBKEY="${AGENT_PUBKEY:-}"
-if [ -z "$PUBKEY" ] && [ ! -f clients/astro.pub ]; then
+if [ -z "$PUBKEY" ] && [ ! -f keys/astro.pub ]; then
   read -rp "Paste the agent's ssh-ed25519 public key: " PUBKEY
 fi
 if [ -n "$PUBKEY" ]; then
-  echo "$PUBKEY" > clients/astro.pub
-  echo "registered in clients/astro.pub"
+  echo "$PUBKEY" > keys/astro.pub
+  echo "registered in keys/astro.pub"
 fi
 
 echo "== config =="

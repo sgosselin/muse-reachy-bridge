@@ -106,6 +106,6 @@ You should see `"ok": true` and your robot type. Then try the panel at
 - **Audit:** `audit.log` records every API call with the caller id — skim it
   after remote sessions. Rotate it occasionally; it's gitignored.
 - **Revoke an agent:** `./scripts/add-client.sh` to rotate,
-  `rm clients/<name>.pub` + service restart to revoke.
+  `rm keys/<name>.pub` + service restart to revoke.
 - **Standing down:** unload/disable the funnel service when you don't want
   the robot reachable; the bridge keeps running locally.

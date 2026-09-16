@@ -42,13 +42,13 @@ fi
 say "3/5 — Agent access (Ed25519 public key)"
 info "Your agent holds the PRIVATE key. You only ever paste the PUBLIC key here."
 info "Nothing secret crosses the wire in this step."
-mkdir -p clients
-if ls clients/*.pub >/dev/null 2>&1; then
-  info "existing clients: $(ls clients/*.pub | xargs -n1 basename | tr '\n' ' ')"
+mkdir -p keys
+if ls keys/*.pub >/dev/null 2>&1; then
+  info "existing clients: $(ls keys/*.pub | xargs -n1 basename | tr '\n' ' ')"
 fi
 read -r -p "  Agent name [astro]: " AGENT_NAME || true
 AGENT_NAME="${AGENT_NAME:-astro}"
-PUB_FILE="clients/${AGENT_NAME}.pub"
+PUB_FILE="keys/${AGENT_NAME}.pub"
 if [ -f "$PUB_FILE" ]; then
   info "keeping existing $PUB_FILE"
 else

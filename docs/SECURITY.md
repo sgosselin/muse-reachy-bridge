@@ -14,7 +14,7 @@ anonymous access to anything but the panel's static HTML.
 |---|---|
 | Stranger finds the Funnel URL | 401 — they can't forge a signature without the agent's private key |
 | Replay of a captured request | Timestamp window (±120 s default) + server-side nonce cache |
-| Agent's laptop/VM compromised | Owner revokes: `rm clients/<name>.pub`, restart — no shared secret to rotate elsewhere |
+| Agent's laptop/VM compromised | Owner revokes: `rm keys/<name>.pub`, restart — no shared secret to rotate elsewhere |
 | Panel token leaks (browser, shoulder-surfing) | Rotate `BRIDGE_PANEL_TOKEN` in `.env`; agent API unaffected (separate credential) |
 | Malicious or buggy motion command | Clamped to published safe ranges; e-stop latch; audit log shows who did what |
 | Eavesdropping on the wire | Tunnel provides TLS; signatures don't leak the key even over plaintext |
@@ -36,7 +36,7 @@ anonymous access to anything but the panel's static HTML.
 ## Operational guidance
 
 - Generate the panel token with `openssl rand -hex 16` (setup.sh does this).
-- Never commit `.env`, `clients/*.pub`, or `audit.log` (all gitignored).
+- Never commit `.env`, `keys/*.pub`, or `audit.log` (all gitignored).
 - The agent's **private** key must never be transmitted — the ceremony is
   public-key-only. If a private key is ever exposed, generate a new keypair
   and replace the `.pub` file.

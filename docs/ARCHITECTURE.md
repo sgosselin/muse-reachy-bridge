@@ -37,7 +37,7 @@ confidentiality in transit; signatures provide *identity*.
 | `panel/panel.html` | Human control UI, bearer-token auth, served by the bridge |
 | `scripts/setup.sh` | Interactive one-command installer: venv, robot probe, agent pubkey intake, panel token, `.env` |
 | `scripts/add-client.sh` | Add/replace an agent public key later |
-| `clients/<name>.pub` | Agent public keys (gitignored, owner-local) |
+| `keys/<name>.pub` | Agent public keys (gitignored, owner-local) |
 | `audit.log` | Append-only JSON log of every API call (gitignored, owner-local) |
 
 ## Authentication in detail
@@ -52,7 +52,7 @@ signature = base64( ed25519_sign(private_key, message) )
 sent as `X-Bridge-Client`, `X-Bridge-Timestamp`, `X-Bridge-Nonce`,
 `X-Bridge-Signature`. The bridge:
 
-1. looks up `clients/<name>.pub`,
+1. looks up `keys/<name>.pub`,
 2. rejects timestamps outside ±`BRIDGE_AUTH_WINDOW` (default 120 s) — clients
    and server need roughly synced clocks (NTP is enough),
 3. rejects already-seen nonces (in-memory cache, replay protection),
@@ -68,8 +68,8 @@ call it makes is authenticated).
 
 1. The agent generates an Ed25519 keypair on its own machine.
 2. The agent sends the *public* key to the owner (safe to paste in chat).
-3. The owner runs `setup.sh` (or `add-client.sh`) and pastes it → `clients/<name>.pub`.
-4. Revocation = `rm clients/<name>.pub` + restart.
+3. The owner runs `setup.sh` (or `add-client.sh`) and pastes it → `keys/<name>.pub`.
+4. Revocation = `rm keys/<name>.pub` + restart.
 
 ## Robot adapters
 

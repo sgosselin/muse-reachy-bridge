@@ -1,8 +1,8 @@
 # secrets & local state — never commit
 .env
 .venv/
-clients/*.pub
-!clients/.gitkeep
+keys/*.pub
+!keys/.gitkeep
 audit.log
 # python
 __pycache__/
