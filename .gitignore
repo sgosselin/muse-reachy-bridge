@@ -1,0 +1,11 @@
+# secrets & local state — never commit
+.env
+.venv/
+clients/*.pub
+!clients/.gitkeep
+audit.log
+# python
+__pycache__/
+*.pyc
+# macOS
+.DS_Store

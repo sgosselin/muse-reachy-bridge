@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reachy Bridge Panel</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background:#111; color:#eee;
+         margin:0; padding:16px; max-width:560px; margin-inline:auto; }
+  h1 { font-size:1.3rem; margin:0 0 4px; }
+  .sub { color:#999; font-size:.85rem; margin-bottom:16px; }
+  .card { background:#1c1c1e; border-radius:12px; padding:14px; margin-bottom:12px; }
+  .card h2 { font-size:.95rem; margin:0 0 10px; color:#bbb; text-transform:uppercase;
+             letter-spacing:.06em; }
+  label { display:flex; justify-content:space-between; font-size:.9rem; margin:8px 0 2px; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button { flex:1 1 auto; min-height:44px; border:0; border-radius:10px; font-size:.95rem;
+           background:#2c2c2e; color:#eee; padding:10px 12px; cursor:pointer; }
+  button:active { transform:scale(.97); }
+  button.go { background:#0a84ff; }
+  button.warn { background:#5a2d12; }
+  button.danger { background:#8e1f1f; font-weight:700; }
+  button.safe { background:#1f6b3a; font-weight:700; }
+  #estopState { font-weight:700; }
+  pre { background:#000; border-radius:8px; padding:10px; overflow:auto; max-height:260px;
+        font-size:.75rem; }
+  .ok { color:#4ade80; } .bad { color:#f87171; }
+  select, input[type=text] { background:#2c2c2e; color:#eee; border:1px solid #444;
+        border-radius:8px; padding:10px; font-size:.9rem; width:100%; box-sizing:border-box; }
+</style>
+</head>
+<body>
+<h1>🤖 Reachy Bridge</h1>
+<div class="sub" id="connLine">not connected</div>
+
+<div class="card" id="authCard">
+  <h2>Auth token</h2>
+  <input type="text" id="token" placeholder="paste BRIDGE_TOKEN" autocomplete="off">
+  <div class="row" style="margin-top:8px">
+    <button class="go" onclick="saveToken()">Connect</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Head pose <span style="float:right" id="poseEcho"></span></h2>
+  <label>Pitch <span id="vPitch">0°</span></label>
+  <input type="range" id="pitch" min="-40" max="40" value="0" step="1"
+         oninput="document.getElementById('vPitch').textContent=this.value+'°'">
+  <label>Yaw <span id="vYaw">0°</span></label>
+  <input type="range" id="yaw" min="-180" max="180" value="0" step="1"
+         oninput="document.getElementById('vYaw').textContent=this.value+'°'">
+  <label>Roll <span id="vRoll">0°</span></label>
+  <input type="range" id="roll" min="-40" max="40" value="0" step="1"
+         oninput="document.getElementById('vRoll').textContent=this.value+'°'">
+  <label>Duration <span id="vDur">1.5s</span></label>
+  <input type="range" id="dur" min="0.2" max="5" value="1.5" step="0.1"
+         oninput="document.getElementById('vDur').textContent=this.value+'s'">
+  <div class="row" style="margin-top:10px">
+    <button class="go" onclick="goto()">Move head</button>
+    <button onclick="center()">Center</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Presets</h2>
+  <div class="row">
+    <button onclick="preset('nod')">Nod</button>
+    <button onclick="preset('shake')">Shake</button>
+    <button onclick="preset('look_around')">Look around</button>
+    <button onclick="preset('curious')">Curious</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Safety — <span id="estopState" class="ok">READY</span></h2>
+  <div class="row">
+    <button class="danger" onclick="estop(true)">E-STOP</button>
+    <button class="safe" onclick="estop(false)">Reset E-stop</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="warn" onclick="motors('disabled')">Motors off</button>
+    <button onclick="motors('enabled')">Motors on</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Daemon passthrough</h2>
+  <div class="row" style="margin-bottom:8px">
+    <select id="pmethod" style="flex:0 0 110px">
+      <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+    </select>
+    <input type="text" id="ppath" placeholder="state/full-state" style="flex:1">
+  </div>
+  <input type="text" id="pbody" placeholder='optional JSON body, e.g. {"mode":"enabled"}'>
+  <div class="row" style="margin-top:8px">
+    <button class="go" onclick="proxy()">Send</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>State</h2>
+  <div class="row" style="margin-bottom:8px"><button onclick="refresh()">Refresh</button></div>
+  <pre id="state">—</pre>
+</div>
+
+<script>
+let token = localStorage.getItem('reachy_bridge_token') || '';
+document.getElementById('token').value = token;
+
+function saveToken() {
+  token = document.getElementById('token').value.trim();
+  localStorage.setItem('reachy_bridge_token', token);
+  refresh();
+}
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token,
+               'Content-Type': 'application/json', ...(opts.headers||{}) },
+  });
+  const data = await res.json().catch(() => ({raw: res.statusText}));
+  if (!res.ok) throw new Error(res.status + ' ' + JSON.stringify(data));
+  return data;
+}
+const $ = id => document.getElementById(id);
+async function goto() {
+  await api('/goto', { method:'POST', body: JSON.stringify({
+    pitch:+$('pitch').value, yaw:+$('yaw').value, roll:+$('roll').value,
+    duration:+$('dur').value, interpolation:'minjerk' }) });
+  $('poseEcho').textContent = `${$('pitch').value}° / ${$('yaw').value}° / ${$('roll').value}°`;
+  refresh();
+}
+function center(){ ['pitch','yaw','roll'].forEach((k,i)=>{$(k).value=0;$(['vPitch','vYaw','vRoll'][i]).textContent='0°';}); goto(); }
+async function preset(n){ await api('/preset/'+n, {method:'POST'}); refresh(); }
+async function estop(on){
+  await api(on ? '/estop' : '/estop/reset', {method:'POST'});
+  $('estopState').textContent = on ? 'E-STOPPED' : 'READY';
+  $('estopState').className = on ? 'bad' : 'ok';
+}
+async function motors(m){ await api('/motors',{method:'POST',body:JSON.stringify({mode:m})}); refresh(); }
+async function proxy(){
+  let body; try { body = $('pbody').value ? JSON.parse($('pbody').value) : undefined; }
+  catch(e){ alert('bad JSON body'); return; }
+  const d = await api('/proxy/'+$('ppath').value.replace(/^\//,''), {
+    method:$('pmethod').value, body: body?JSON.stringify(body):undefined });
+  $('state').textContent = JSON.stringify(d, null, 2);
+}
+async function refresh(){
+  try {
+    const [h, s] = await Promise.all([api('/health'), api('/state')]);
+    $('connLine').innerHTML = `connected · <b>${h.robot}</b> · e-stop: ${h.estop_latched?'<span class="bad">LATCHED</span>':'<span class="ok">clear</span>'}`;
+    $('estopState').textContent = h.estop_latched ? 'E-STOPPED' : 'READY';
+    $('estopState').className = h.estop_latched ? 'bad' : 'ok';
+    $('state').textContent = JSON.stringify(s, null, 2);
+  } catch(e) {
+    $('connLine').innerHTML = `<span class="bad">error: ${e.message}</span>`;
+  }
+}
+if (token) refresh();
+</script>
+</body>
+</html>

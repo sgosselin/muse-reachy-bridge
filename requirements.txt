@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+httpx>=0.27
+cryptography>=42
+# Only needed for full-size Reachy 1/2/2023 (classic gRPC SDK):
+# reachy-sdk

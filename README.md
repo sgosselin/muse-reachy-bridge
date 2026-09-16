@@ -1,1 +1,96 @@
-# muse-reachy-bridge
+# reachy-bridge 🤖
+
+Give your Reachy a remote body over HTTPS — securely. A small server on your
+Mac (same LAN as the robot) exposes it to an AI agent anywhere on the
+internet, with **Ed25519 request signatures** proving *which* agent is calling.
+No open ports, no shared passwords for the agent, no anonymous access.
+
+```
+  agent (anywhere)              your Mac (LAN)               robot
+ ┌──────────────┐  https     ┌────────────────────┐   LAN  ┌──────────────┐
+ │ signs every  │ ─────────▶ │ bridge.py :8765    │ ─────▶ │ Reachy Mini  │
+ │ request with │  tunnel    │  signature auth +  │        │ daemon :8000 │
+ │ private key  │  (Funnel)  │  panel (token)     │        └──────────────┘
+ └──────────────┘ ◀───────── └────────────────────┘
+                    signed JSON
+```
+
+Why signatures instead of mTLS? Tailscale Funnel and Cloudflare Tunnel
+terminate TLS at their edge, so mTLS can't work end-to-end. Signatures live
+at the HTTP layer and survive any tunnel. See `docs/ARCHITECTURE.md`.
+
+## Quickstart (robot owners)
+
+```bash
+git clone <this-repo> && cd reachy-bridge
+./scripts/setup.sh        # venv, robot probe, agent key intake, .env — ~2 min
+source .venv/bin/activate
+python bridge.py          # or: BRIDGE_MOCK=1 python bridge.py  (no hardware)
+```
+
+Then:
+
+1. Open http://127.0.0.1:8765/panel — paste the panel token from `.env`, wiggle the head. If it moves, the bridge works.
+2. In another terminal: `tailscale funnel 8765` → copy the public `https://…` URL.
+3. Send your agent **two** things: the funnel URL, and your agent's *public* key
+   (you pasted it into `clients/` during setup — the agent's *private* key
+   never leaves the agent's machine).
+
+That's it. The agent drives the robot; you keep the panel and the e-stop.
+
+## Giving an agent access (the 60-second ceremony)
+
+1. Agent generates an Ed25519 keypair on its own machine and sends you the
+   **public** key (safe to paste in chat — it's public).
+2. You run `./scripts/add-client.sh astro`, paste the key, restart `bridge.py`.
+3. To revoke: `rm clients/astro.pub` and restart. Done.
+
+## API
+
+All calls need either a valid Ed25519 signature (`X-Bridge-*` headers — see
+`client/bridge_client.py`) or the panel bearer token. Units are **degrees**.
+
+| Endpoint | What it does |
+|---|---|
+| `GET /health` | liveness, robot type, registered agent clients |
+| `GET /state` | last commanded pose + raw daemon state |
+| `GET /limits` | clamp table + interpolation modes |
+| `POST /goto` | `{pitch, yaw, roll, duration, interpolation}` — clamped to safe ranges |
+| `POST /preset/{nod,shake,look_around,curious}` | canned expression, background task |
+| `POST /motors` | `{mode: enabled\|disabled\|gravity_compensation}` |
+| `POST /estop` / `POST /estop/reset` | latching software e-stop |
+| `ANY /proxy/{subpath}` | raw passthrough to the Mini daemon |
+| `GET /panel` | browser control panel |
+
+Agents: use `client/bridge_client.py` — it signs everything for you:
+
+```bash
+python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key health
+python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key goto --yaw -30 --pitch 10
+```
+
+## Layout
+
+```
+bridge.py              the server (auth, adapters, safety, audit, panel)
+client/bridge_client.py  signing client library + smoke-test CLI
+panel/panel.html       human control UI
+scripts/setup.sh       one-command installer / wizard
+scripts/add-client.sh  add or rotate an agent's public key
+clients/               agent public keys (gitignored — yours, not the repo's)
+docs/ARCHITECTURE.md   full design rationale
+docs/SECURITY.md       threat model + operational guidance
+```
+
+## Safety
+
+- Motion clamped to Pollen's published limits; `/estop` latches (423 on all
+  motion until reset); every call lands in `audit.log` with the caller id.
+- Don't leave the tunnel up unattended with a live robot. Read
+  `docs/SECURITY.md` before exposing yours.
+
+## Roadmap
+
+- Camera (Mini video is WebRTC-only today — phase 2: eyes for the body)
+- Speech via daemon sound upload
+- Full-size Reachy head motion (stub marked in `ClassicAdapter.goto`)
