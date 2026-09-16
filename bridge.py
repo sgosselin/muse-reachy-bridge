@@ -37,6 +37,11 @@ Endpoints (all JSON; /panel HTML is public, its API calls are authenticated):
   POST /estop/reset       clear the latch
   ANY  /proxy/{subpath}   raw passthrough to the Mini daemon, e.g.
                           POST /proxy/goto  ==  POST <daemon>/api/goto
+  GET  /camera/snapshot   JPEG frame from the robot camera (?width=px)
+  POST /mic/record        {seconds} -> mono 16kHz WAV of mic audio
+  POST /speaker/play      raw audio bytes in body (?filename=, ?wait_seconds=)
+                          -> played on the robot's speakers
+  GET  /sense/doa         mic-array direction of arrival
   GET  /panel             browser control panel
 """
 
@@ -48,6 +53,7 @@ import math
 import os
 import secrets
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 
@@ -55,10 +61,12 @@ import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import Request
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
-from fastapi import BackgroundTasks
+
+from media import get_media, media_status
 
 # --------------------------------------------------------------------------
 # Safety limits (degrees) — from Pollen Robotics' published safety table.
@@ -299,7 +307,7 @@ ADAPTER: RobotAdapter = MockAdapter()  # replaced at startup
 # --------------------------------------------------------------------------
 # App + authentication
 # --------------------------------------------------------------------------
-app = FastAPI(title="reachy-bridge", version="0.2.0")
+app = FastAPI(title="reachy-bridge", version="0.3.0")
 
 
 def _prune_nonces(now: float):
@@ -393,6 +401,7 @@ async def health(_=Depends(authenticate)):
             "estop_latched": ESTOP["latched"],
             "signature_auth": not CONFIG.no_auth,
             "registered_clients": sorted(CLIENTS.keys()),
+            "media": media_status(CONFIG.mock),
             "time": time.time()}
 
 
@@ -507,6 +516,86 @@ async def proxy(subpath: str, request: Request, _=Depends(authenticate)):
         raise
     except Exception as e:  # noqa: BLE001
         raise HTTPException(502, f"proxy error: {type(e).__name__}: {e}")
+
+
+# --------------------------------------------------------------------------
+# Media — camera / mic / speaker / direction-of-arrival.
+# Sync `def` endpoints run in FastAPI's threadpool so GStreamer blocking
+# calls and multi-second recordings never stall the event loop.
+# --------------------------------------------------------------------------
+class RecordRequest(BaseModel):
+    seconds: float = Field(default=5.0, ge=1.0, le=30.0)
+
+
+@app.get("/camera/snapshot")
+def camera_snapshot(width: int | None = None, _=Depends(authenticate)):
+    if width is not None and not (80 <= width <= 1920):
+        raise HTTPException(400, "width must be between 80 and 1920")
+    jpeg = get_media(CONFIG.mock).snapshot_jpeg(width)
+    return Response(content=jpeg, media_type="image/jpeg")
+
+
+@app.post("/mic/record")
+def mic_record(req: RecordRequest, _=Depends(authenticate)):
+    wav = get_media(CONFIG.mock).record(req.seconds)
+    return Response(content=wav, media_type="audio/wav",
+                    headers={"Content-Disposition":
+                             'attachment; filename="reachy-mic.wav"'})
+
+
+_PLAY_TMPDIR = os.path.join(tempfile.gettempdir(), "reachy-bridge-play")
+
+
+def _clean_play_tmpdir():
+    """Delete played files older than an hour. play_sound() reads the file
+    asynchronously, so we can't unlink right after the call returns."""
+    try:
+        os.makedirs(_PLAY_TMPDIR, exist_ok=True)
+        now = time.time()
+        for fname in os.listdir(_PLAY_TMPDIR):
+            p = os.path.join(_PLAY_TMPDIR, fname)
+            if now - os.path.getmtime(p) > 3600:
+                os.unlink(p)
+    except OSError:
+        pass
+
+
+@app.post("/speaker/play")
+async def speaker_play(request: Request,
+                       wait_seconds: float = 0.0,
+                       filename: str = "audio.wav",
+                       _=Depends(authenticate)):
+    """Body = raw audio bytes (Content-Type: audio/wav, audio/mpeg, ...).
+    Multipart is deliberately avoided: the auth layer already consumes the
+    request stream for signature verification, so form parsing would fail."""
+    if not (0.0 <= wait_seconds <= 120.0):
+        raise HTTPException(400, "wait_seconds must be between 0 and 120")
+    suffix = os.path.splitext(filename or "")[1].lower() or ".wav"
+    if suffix not in (".wav", ".mp3", ".ogg", ".flac"):
+        raise HTTPException(400, f"unsupported audio type: {suffix or '?'} "
+                                 "(wav, mp3, ogg, flac)")
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "empty audio body")
+    if len(body) > 20 * 1024 * 1024:
+        raise HTTPException(413, "audio file too large (20 MB max)")
+    _clean_play_tmpdir()
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix,
+                                      dir=_PLAY_TMPDIR)
+    try:
+        with open(tmp.name, "wb") as f:
+            f.write(body)
+        return get_media(CONFIG.mock).play(tmp.name, wait_seconds)
+    finally:
+        tmp.close()
+
+
+@app.get("/sense/doa")
+def sense_doa(_=Depends(authenticate)):
+    res = get_media(CONFIG.mock).doa()
+    if res is None:
+        raise HTTPException(502, "direction-of-arrival unavailable")
+    return res
 
 
 @app.get("/panel", response_class=HTMLResponse)

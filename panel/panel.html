@@ -100,6 +100,16 @@
 </div>
 
 <div class="card">
+  <h2>Camera</h2>
+  <div class="row" style="margin-bottom:8px">
+    <button onclick="snap()">Snapshot</button>
+    <button onclick="toggleCam(this)">Live: off</button>
+  </div>
+  <img id="cam" style="width:100%;border-radius:10px;display:none" alt="camera snapshot">
+  <div id="camErr" class="bad"></div>
+</div>
+
+<div class="card">
   <h2>State</h2>
   <div class="row" style="margin-bottom:8px"><button onclick="refresh()">Refresh</button></div>
   <pre id="state">—</pre>
@@ -146,6 +156,24 @@ async function proxy(){
   const d = await api('/proxy/'+$('ppath').value.replace(/^\//,''), {
     method:$('pmethod').value, body: body?JSON.stringify(body):undefined });
   $('state').textContent = JSON.stringify(d, null, 2);
+}
+let camTimer = null;
+async function snap(){
+  try {
+    $('camErr').textContent = '';
+    const res = await fetch('/camera/snapshot?width=640', {
+      headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) throw new Error(res.status + ' ' + await res.text());
+    const blob = await res.blob();
+    const img = $('cam');
+    if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+    img.src = URL.createObjectURL(blob);
+    img.style.display = 'block';
+  } catch(e) { $('camErr').textContent = 'camera: ' + e.message; }
+}
+function toggleCam(btn){
+  if (camTimer) { clearInterval(camTimer); camTimer = null; btn.textContent = 'Live: off'; }
+  else { snap(); camTimer = setInterval(snap, 2000); btn.textContent = 'Live: on'; }
 }
 async function refresh(){
   try {

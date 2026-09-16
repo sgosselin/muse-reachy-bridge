@@ -60,14 +60,31 @@ All calls need either a valid Ed25519 signature (`X-Bridge-*` headers — see
 | `POST /motors` | `{mode: enabled\|disabled\|gravity_compensation}` |
 | `POST /estop` / `POST /estop/reset` | latching software e-stop |
 | `ANY /proxy/{subpath}` | raw passthrough to the Mini daemon |
-| `GET /panel` | browser control panel |
+| `GET /camera/snapshot?width=` | JPEG frame from the robot camera |
+| `POST /mic/record` | `{seconds: 1–30}` → mono 16 kHz WAV of mic audio |
+| `POST /speaker/play?wait_seconds=&filename=` | raw audio bytes in body → robot speakers |
+| `GET /sense/doa` | mic-array direction of arrival (radians + speech flag) |
+| `GET /panel` | browser control panel (now with camera view) |
 
 Agents: use `client/bridge_client.py` — it signs everything for you:
 
 ```bash
 python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key health
 python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key goto --yaw -30 --pitch 10
+python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key snapshot --out cam.jpg
+python client/bridge_client.py --url https://<your-funnel-url> --key ~/.ssh/my_bridge_key record --seconds 5 --out hello.wav
 ```
+
+## Media notes
+
+On a real Reachy Mini the media endpoints are served by `media.py` through the
+`reachy_mini` SDK's `MediaManager` (LOCAL backend — the bridge runs on the
+robot, so it reads camera frames from the daemon's local IPC feed and audio
+via GStreamer; no WebRTC needed). The SDK is imported lazily: without it the
+media endpoints answer `501` with the reason, and everything else keeps
+working. Install it on the bridge host with `pip install reachy-mini`
+(`scripts/install-robot.sh` does this; on Raspberry Pi OS it also pulls
+`python3-gi` from apt so PyGObject doesn't build from source).
 
 ## Layout
 
@@ -99,6 +116,6 @@ bridge host doesn't even need to be on the robot's LAN.
 
 ## Roadmap
 
-- Camera (Mini video is WebRTC-only today — phase 2: eyes for the body)
-- Speech via daemon sound upload
+- Real-time voice loop (VAD + STT → LLM → TTS on the robot; the bridge's
+  `/mic/record` + `/speaker/play` are the transport, a realtime API is the brain)
 - Full-size Reachy head motion (stub marked in `ClassicAdapter.goto`)

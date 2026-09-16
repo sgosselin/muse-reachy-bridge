@@ -82,6 +82,27 @@ class BridgeClient:
         except json.JSONDecodeError:
             return {"raw": raw}
 
+    def request_bytes(self, method: str, path: str, body: bytes = b"",
+                      content_type: str = "application/json"):
+        """Raw variant of request(): returns (bytes, content_type). The
+        signature covers the exact body bytes, whatever the content type.
+        Query strings are part of the URL but NOT of the signed path
+        (the bridge signs request.url.path, which excludes the query)."""
+        sign_path = path.split("?", 1)[0]
+        headers = self._signed_headers(method, sign_path, body)
+        headers["Content-Type"] = content_type
+        req = urllib.request.Request(
+            self.base_url + path,
+            data=body if body or method in ("POST", "PUT", "PATCH") else None,
+            method=method,
+            headers=headers,
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return resp.read(), resp.headers.get("Content-Type", "")
+        except urllib.error.HTTPError as e:
+            raise BridgeError(e.code, e.read().decode()) from e
+
     # -- convenience wrappers ------------------------------------------------
     def health(self): return self.request("GET", "/health")
     def state(self): return self.request("GET", "/state")
@@ -100,6 +121,41 @@ class BridgeClient:
     def proxy(self, method, subpath, payload=None):
         return self.request(method, "/proxy/" + subpath.lstrip("/"), payload)
 
+    # -- media ---------------------------------------------------------------
+    def snapshot(self, path, width=None):
+        """Save a camera JPEG frame to `path`. Returns the saved path."""
+        q = f"?width={int(width)}" if width else ""
+        raw, _ = self.request_bytes("GET", "/camera/snapshot" + q)
+        with open(os.path.expanduser(path), "wb") as f:
+            f.write(raw)
+        return os.path.expanduser(path)
+
+    def record(self, path, seconds=5.0):
+        """Record `seconds` of mic audio to `path` (WAV). Returns the path."""
+        raw, _ = self.request_bytes(
+            "POST", "/mic/record", json.dumps({"seconds": seconds}).encode())
+        with open(os.path.expanduser(path), "wb") as f:
+            f.write(raw)
+        return os.path.expanduser(path)
+
+    def play(self, audio_path, wait_seconds=0.0):
+        """Play an audio file (wav/mp3/ogg/flac) on the robot's speakers.
+        The raw file bytes are the request body (no multipart)."""
+        import mimetypes
+        from urllib.parse import quote
+        audio_path = os.path.expanduser(audio_path)
+        with open(audio_path, "rb") as f:
+            audio = f.read()
+        mime = mimetypes.guess_type(audio_path)[0] or "application/octet-stream"
+        name = quote(os.path.basename(audio_path))
+        raw, _ = self.request_bytes(
+            "POST", f"/speaker/play?wait_seconds={wait_seconds}&filename={name}",
+            audio, mime)
+        return json.loads(raw.decode())
+
+    def doa(self):
+        return self.request("GET", "/sense/doa")
+
 
 def main():
     ap = argparse.ArgumentParser(description="signed reachy-bridge client")
@@ -108,13 +164,24 @@ def main():
                     help="Ed25519 private key")
     ap.add_argument("--client", default="astro", help="client id in clients/")
     ap.add_argument("command", choices=["health", "state", "limits", "goto",
-                                        "preset", "motors", "estop", "estop-reset"])
+                                        "preset", "motors", "estop", "estop-reset",
+                                        "snapshot", "record", "play", "doa"])
     ap.add_argument("--pitch", type=float, default=0.0)
     ap.add_argument("--yaw", type=float, default=0.0)
     ap.add_argument("--roll", type=float, default=0.0)
     ap.add_argument("--duration", type=float, default=1.5)
     ap.add_argument("--name", default="nod")
     ap.add_argument("--mode", default="disabled")
+    ap.add_argument("--out", default="snapshot.jpg",
+                    help="output path for snapshot/record")
+    ap.add_argument("--file", default="",
+                    help="audio file to play on the robot")
+    ap.add_argument("--seconds", type=float, default=5.0,
+                    help="mic recording length")
+    ap.add_argument("--wait", type=float, default=0.0,
+                    help="block until playback finished (speaker/play)")
+    ap.add_argument("--width", type=int, default=0,
+                    help="downscale snapshot to this width")
     a = ap.parse_args()
 
     b = BridgeClient(a.url, client_id=a.client, key_path=a.key)
@@ -134,6 +201,16 @@ def main():
         out = b.estop()
     elif a.command == "estop-reset":
         out = b.estop_reset()
+    elif a.command == "snapshot":
+        out = {"saved": b.snapshot(a.out, width=a.width or None)}
+    elif a.command == "record":
+        out = {"saved": b.record(a.out, seconds=a.seconds)}
+    elif a.command == "play":
+        if not a.file:
+            ap.error("--file is required for play")
+        out = b.play(a.file, wait_seconds=a.wait)
+    elif a.command == "doa":
+        out = b.doa()
     print(json.dumps(out, indent=2))
 
 

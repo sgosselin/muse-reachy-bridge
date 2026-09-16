@@ -91,6 +91,27 @@ call it makes is authenticated).
 endpoints (body yaw, antennas, emotions, sounds) are reachable the moment
 they're discovered via the daemon's live `/docs` — no bridge changes needed.
 
+## Media adapters
+
+`media.py` mirrors the motion-adapter pattern (`snapshot_jpeg / record / play / doa`):
+
+- **Reachy Mini** — the `reachy_mini` SDK's `MediaManager` with the LOCAL
+  backend. The bridge runs on the robot, so the camera comes from the
+  daemon's local IPC feed (`get_frame_jpeg()`) and audio goes through
+  GStreamer: `start_recording()` + `get_audio_sample()` (float32 stereo @
+  16 kHz, downmixed to mono WAV) for the mic, `play_sound(path)` for the
+  speakers, `get_DoA()` for the mic array's direction of arrival. No WebRTC
+  on the bridge side — the tunnel only needs to carry HTTPS. The SDK is
+  imported lazily; without it the media endpoints answer **501** with the
+  reason instead of breaking the bridge.
+- **Mock** — synthetic test card JPEG, sine-wave WAV, instant playback,
+  fixed DoA. The whole media surface is testable with no hardware.
+
+`/speaker/play` takes raw audio bytes (not multipart): the auth layer reads
+the request body to verify the signature, which would break form parsing.
+Played files land in a temp dir and are garbage-collected after an hour,
+because `play_sound()` reads the file asynchronously.
+
 ## Safety
 
 - Every motion value is clamped to Pollen's published limits (head pitch/roll
@@ -102,8 +123,8 @@ they're discovered via the daemon's live `/docs` — no bridge changes needed.
 
 ## What's deliberately out of scope (v1)
 
-- **Video.** The Mini's camera is WebRTC-only (signalling on the daemon's
-  port 8443); the bridge doesn't proxy it yet. Natural phase 2: eyes for the body.
-- **Speech.** The daemon can play uploaded sounds; wiring TTS upload is phase 2.
+- **Real-time voice.** `/mic/record` + `/speaker/play` are the transport for
+  a voice loop, but duplex conversation (VAD, barge-in) belongs in a
+  dedicated on-robot process against a realtime speech API, not in this bridge.
 - **Multi-robot.** One bridge = one robot. Run two bridges on different ports
   for two robots.

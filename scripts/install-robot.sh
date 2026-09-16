@@ -49,13 +49,22 @@ cd "$INSTALL_DIR"
 
 echo "== python env =="
 if [ ! -d .venv ]; then
-  python3 -m venv .venv 2>/dev/null || {
+  python3 -m venv --system-site-packages .venv 2>/dev/null || {
     sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
-    python3 -m venv .venv
+    python3 -m venv --system-site-packages .venv
   }
 fi
+# System GStreamer/GLib come from apt (python3-gi); the venv sees them via
+# --system-site-packages so `pip install reachy-mini` doesn't try to build
+# PyGObject from source.
+sudo apt-get install -y -qq python3-gi gir1.2-gstreamer-1.0 2>/dev/null || true
 .venv/bin/pip install -q --upgrade pip
 .venv/bin/pip install -q -r requirements.txt
+.venv/bin/pip install -q reachy-mini 2>&1 | tail -1 || {
+  echo "WARNING: could not install reachy-mini — media endpoints will 501."
+  echo "The bridge still works for motion; fix media later with:"
+  echo "  $INSTALL_DIR/.venv/bin/pip install reachy-mini"
+}
 
 echo "== agent key =="
 mkdir -p clients
