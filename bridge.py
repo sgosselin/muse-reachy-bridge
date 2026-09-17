@@ -36,7 +36,7 @@ Endpoints (all JSON; /panel HTML is public, its API calls are authenticated):
   POST /estop             latching software e-stop (also cuts motors)
   POST /estop/reset       clear the latch
   ANY  /proxy/{subpath}   raw passthrough to the Mini daemon, e.g.
-                          POST /proxy/goto  ==  POST <daemon>/api/goto
+                          POST /proxy/move/goto == POST <daemon>/api/move/goto
   GET  /camera/snapshot   JPEG frame from the robot camera (?width=px)
   POST /mic/record        {seconds} -> mono 16kHz WAV of mic audio
   POST /speaker/play      raw audio bytes in body (?filename=, ?wait_seconds=)
@@ -179,11 +179,11 @@ class RobotAdapter:
 class MiniAdapter(RobotAdapter):
     """Reachy Mini — talks to the onboard daemon's REST API.
 
-    Verified surface (pollen-robotics/reachy_mini AGENTS.md + community docs):
-      POST /api/goto               {head_pose:{x,y,z,roll,pitch,yaw (rad)},
+    Routes confirmed on the robot's Reachy Mini daemon 1.9.0:
+      POST /api/move/goto          {head_pose:{x,y,z,roll,pitch,yaw (rad)},
                                     duration, interpolation}
-      GET  /api/state/full-state
-      POST /api/motors/set-mode    {mode}
+      GET  /api/state/full
+      POST /api/motors/set_mode/{mode}
     Body-yaw / antenna REST shapes are NOT verified — use /proxy with the
     daemon's live /docs (http://<daemon>:8000/docs) to discover them.
     """
@@ -196,11 +196,11 @@ class MiniAdapter(RobotAdapter):
             base_url = base_url[: -len("/api")]
         self.base_url = base_url
         self.client = httpx.Client(base_url=base_url + "/api", timeout=10.0)
-        r = self.client.get("/state/full-state")  # fail fast if daemon is down
+        r = self.client.get("/state/full")  # fail fast if daemon is down
         r.raise_for_status()
 
     def state(self) -> dict:
-        r = self.client.get("/state/full-state")
+        r = self.client.get("/state/full")
         r.raise_for_status()
         return r.json()
 
@@ -215,14 +215,14 @@ class MiniAdapter(RobotAdapter):
             "duration": duration,
             "interpolation": interpolation,
         }
-        r = self.client.post("/goto", json=payload)
+        r = self.client.post("/move/goto", json=payload)
         r.raise_for_status()
         return r.json()
 
     def set_motors(self, mode: str) -> dict:
         if mode not in ("enabled", "disabled", "gravity_compensation"):
             raise HTTPException(400, f"unknown motor mode: {mode}")
-        r = self.client.post("/motors/set-mode", json={"mode": mode})
+        r = self.client.post(f"/motors/set_mode/{mode}")
         r.raise_for_status()
         return r.json()
 
@@ -504,6 +504,7 @@ async def estop_reset(_=Depends(authenticate)):
 @app.api_route("/proxy/{subpath:path}",
                methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy(subpath: str, request: Request, _=Depends(authenticate)):
+    require_live()
     body = None
     if request.method in ("POST", "PUT", "PATCH"):
         try:
@@ -656,7 +657,7 @@ def main():
         mock=args.mock or env("BRIDGE_MOCK", "") == "1",
         panel_token=args.panel_token or env("BRIDGE_PANEL_TOKEN"),
         no_auth=args.no_auth or env("BRIDGE_NO_AUTH", "") == "1",
-        clients_dir=args.clients_dir or env("BRIDGE_CLIENTS_DIR", "clients"),
+        clients_dir=args.clients_dir or env("BRIDGE_CLIENTS_DIR", "keys"),
         audit_log=env("BRIDGE_AUDIT_LOG", "audit.log"),
         auth_window=int(env("BRIDGE_AUTH_WINDOW", "120")),
     )

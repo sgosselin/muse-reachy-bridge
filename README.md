@@ -129,7 +129,7 @@ python3 -m venv .venv
 ```
 
 See [docs/TESTING.md](docs/TESTING.md) for isolation details, the optional mock
-panel, and known deployment blockers reported as strict expected failures.
+panel, and deployment regression checks.
 
 ## Safety
 

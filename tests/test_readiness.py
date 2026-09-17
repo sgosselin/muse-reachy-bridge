@@ -1,7 +1,7 @@
-"""Known blockers, expressed as strict expected failures rather than hidden.
+"""Regression checks for deployment fixes.
 
-The API contract below is based on Pollen's upstream source, not a measurement
-of the owner's robot. See docs/TESTING.md for sources and hardware validation.
+The route paths below were confirmed on the owner's Reachy Mini daemon 1.9.0.
+Requests use a simulated daemon; see docs/TESTING.md for validation limits.
 """
 
 import sys
@@ -16,8 +16,6 @@ import bridge
 pytestmark = pytest.mark.readiness
 
 
-@pytest.mark.xfail(reason="Startup still defaults to clients/ while installers write keys/",
-                   raises=AssertionError)
 def test_startup_discovers_installer_key_directory(api, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     for name in list(bridge.os.environ):
@@ -35,8 +33,6 @@ def test_startup_discovers_installer_key_directory(api, monkeypatch, tmp_path):
     assert "test-agent" in bridge.CLIENTS
 
 
-@pytest.mark.xfail(reason="Raw daemon proxy does not check the e-stop latch",
-                   raises=AssertionError)
 def test_estop_blocks_proxy_motion(api, monkeypatch):
     forwarded = []
     monkeypatch.setattr(bridge.ADAPTER, "proxy",
@@ -56,7 +52,7 @@ def upstream_daemon(monkeypatch):
     def respond(request):
         seen.append((request.method, request.url.path))
         accepted = {
-            ("GET", "/api/state/full-state"),
+            ("GET", "/api/state/full"),
             ("POST", "/api/move/goto"),
             ("POST", "/api/motors/set_mode/disabled"),
         }
@@ -74,16 +70,12 @@ def upstream_daemon(monkeypatch):
         client.close()
 
 
-@pytest.mark.xfail(reason="MiniAdapter calls /api/goto; upstream uses /api/move/goto",
-                   raises=httpx.HTTPStatusError)
 def test_motion_matches_upstream_daemon_route(upstream_daemon):
     adapter, seen = upstream_daemon
     adapter.goto(pitch=0, yaw=5, roll=0, duration=1, interpolation="minjerk")
     assert seen[-1] == ("POST", "/api/move/goto")
 
 
-@pytest.mark.xfail(reason="MiniAdapter uses /set-mode JSON; upstream uses /set_mode/{mode}",
-                   raises=httpx.HTTPStatusError)
 def test_motor_disable_matches_upstream_daemon_route(upstream_daemon):
     adapter, seen = upstream_daemon
     adapter.set_motors("disabled")

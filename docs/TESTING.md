@@ -27,29 +27,28 @@ Temporary files, test keys, audit logs, and playback files go into pytest's
 temporary directory. Tests do not load your `.env`, use your `keys/`, or move
 hardware. The startup test runs in its own temporary working directory.
 
-## Known deployment blockers
+## Deployment regression checks
 
-Four tests are marked `readiness` and **strict xfail**: they describe existing
-bugs, not passing behavior. Pytest reports them as expected failures. An
-unexpected pass fails the suite so that the marker is removed when fixed.
+The tests marked `readiness` now require the corrected behavior to pass:
 
-1. Installers save public keys in `keys/`, but `main()` defaults to `clients/`.
-   `.env.example` and the separate-host setup script also select `clients/`.
-2. `/proxy` forwards movement commands while the software e-stop is latched.
-3. Mini motion calls `/api/goto`; upstream exposes `/api/move/goto`.
-4. Motor control calls `/api/motors/set-mode` with JSON; upstream exposes
-   `/api/motors/set_mode/{mode}`. This also affects the e-stop's motor-off call.
+1. Startup discovers public keys in `keys/` by default.
+2. The raw proxy rejects movement requests while the software e-stop is latched.
+3. Mini motion calls `/api/move/goto`.
+4. Motor control calls `/api/motors/set_mode/{mode}`.
 
-The route fixtures reflect Pollen's source inspected on 2026-09-16:
-[move router](https://github.com/pollen-robotics/reachy_mini/blob/main/src/reachy_mini/daemon/app/routers/move.py)
-and [motor router](https://github.com/pollen-robotics/reachy_mini/blob/main/src/reachy_mini/daemon/app/routers/motors.py).
-They are a compatibility check, not proof of the API version on your robot.
-Check the robot's `/openapi.json` before selecting the deployed SDK/API version.
+The simulated daemon uses the API paths confirmed on the owner's Reachy Mini
+Wireless running daemon 1.9.0, including `/api/state/full` for state readout.
+These checks do not validate every payload field or physical hardware behavior.
+Check the robot's `/openapi.json` when changing daemon versions.
 
-To turn these known failures into a failing deployment gate:
+Existing configurations that explicitly set `BRIDGE_CLIENTS_DIR=clients`
+(including `.env.example` and the separate-host setup script) still need that
+value changed to `keys`. The robot was configured explicitly with `keys`.
+
+To run the focused deployment regression checks:
 
 ```bash
-.venv/bin/python -m pytest -m readiness --runxfail
+.venv/bin/python -m pytest -m readiness
 ```
 
 Passing the normal mock suite does **not** mean the bridge is ready for a live
