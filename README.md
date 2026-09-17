@@ -118,6 +118,19 @@ docs/SECURITY.md         threat model + operational guidance
 deploy/                  always-on units if the bridge lives off-robot
 ```
 
+## Development and tests
+
+Create a repository-local test environment and run the hardware-free suite:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pytest
+```
+
+See [docs/TESTING.md](docs/TESTING.md) for isolation details, the optional mock
+panel, and known deployment blockers reported as strict expected failures.
+
 ## Safety
 
 - Motion clamped to Pollen's published limits; `/estop` latches (423 on all
